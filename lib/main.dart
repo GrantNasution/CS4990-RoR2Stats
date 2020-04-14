@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:localstorage/localstorage.dart';
+import 'logview.dart';
+import 'newlog.dart';
+import 'log.dart';
+import 'database.dart';
 
 void main() => runApp(MyApp());
 
@@ -7,107 +11,188 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'RoR2Stats',
+      title: 'RoR2 Stat Log',
       theme: ThemeData(
-        primarySwatch: Colors.blue
+        appBarTheme: AppBarTheme(color: Colors.black,),
+        primaryColor: Colors.black,
+        dividerColor: Color(0xffffcc00),
+        scaffoldBackgroundColor: Color(0xFF13131a), 
+        textTheme: TextTheme(),
       ),
-      home: MyHomePage(title: 'RoR2Stats'),
+      home: HomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
+class HomePage extends StatefulWidget {
+  HomePage({Key key, this.title}) : super(key: key);
   final String title;
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  HomePageState createState() => HomePageState();
 }
+enum Views {addLog, viewLog}
 
-class _MyHomePageState extends State<MyHomePage> {
+class HomePageState extends State<HomePage> {
+  final _newLogPage = new NewLogPage(isnewLog: false);
+  final List<Log> _savedLogs = List<Log>();
+  final LocalStorage storage = new LocalStorage('logs');
+  int viewIndex = 0;
+  bool initialized = false;
+
+  TextStyle _getTextStyle() {
+    return TextStyle(fontSize: 25.0, color: Color(0xffffcc00));
+  }
+  TextStyle _getAppBarTextStyle() {
+    return TextStyle(color: Color(0xffddf2f4));
+  }
+
+  //Builds list of all logs
+  Widget _buildLogs() {
+    return ListView.builder(
+      itemCount: (_savedLogs.length * 2),
+      itemBuilder: (context, i) {
+        if(i.isOdd) {
+          return Divider(thickness: 0.5, color: Color(0xff2fc7e0));
+        }
+        final index = i ~/ 2;
+        //If more rows to build, build it
+        if(index < _savedLogs.length) {
+          return _buildRow(_savedLogs[index], index);
+        }
+        //If no more rows return dividers
+        else {
+          return Divider(thickness: 0.5);
+        }
+      }
+    );
+  }
+
+  //Builds a row populated with log data
+  Widget _buildRow(Log log, int selectedIndex) {
+    return ListTile(
+      title: Text(
+        log.gClass,
+        style: _getTextStyle(),
+      ),
+      trailing: Icon(
+        Icons.arrow_forward_ios,
+        color: Color(0xffffcc00),
+      ),
+      onTap:() {
+        //Set which index to view
+        viewIndex = selectedIndex;
+        _pushView(Views.viewLog);
+      },
+    );
+  }
+
+  //Stores all _savedLogs onto prefs
+  Future<void> _saveLogsToPref() async {
+    // final SharedPreferences prefs = await _prefs;
+    // int i = 0;
+    // _savedLogs.forEach((log) {
+    //   prefs.setString(i.toString(), log.stringify());
+    //   ++i;
+    // });
+  }
+
+  //Load logs if not initailized
+  void initialize() {
+    // _prefs.then((SharedPreferences prefs) {
+    //   int i = 0;
+    //   String logString;
+    //   print(logString + "Yo");
+    //    while(prefs.containsKey(i.toString())) {
+    //      logString = prefs.getString(i.toString());
+    //      parseLog(logString);
+    //    }
+    //    initialized = true;
+    // });
+  }
+
+  //Parses log string stored in prefs and inserts the new log onto _savedLogs
+  void parseLog(String logAsString) {
+    List<String> split = logAsString.split(' ');
+    _savedLogs.insert(0, Log(
+      lclass: split[0], 
+      kills: int.parse(split[1]), 
+      minionKills: int.parse(split[2]), 
+      deaths: int.parse(split[3]), 
+      damageDealt: int.parse(split[4]), 
+      minionDamageDealt: int.parse(split[5])));
+  }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    if(_newLogPage.isnewLog) {
+      _savedLogs.insert(0, Log.clone(_newLogPage.newLog));
+      _newLogPage.setFalse();
+      _saveLogsToPref();
+    }
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      drawer: Drawer(
-        child: ListView(
-          children: <Widget> [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.lightBlue,
+        title: Text(
+          "RoR2 Stat Log", 
+          style: _getAppBarTextStyle()
+          ),
+        actions: <Widget>[
+          PopupMenuButton<Views>(
+            onSelected: (Views selected) {
+              _pushView(selected);
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<Views>>[
+              PopupMenuItem<Views>(
+                value: Views.addLog,
+                child: Text(
+                  'Add New Log',
+                  style: _getTextStyle(),
+                ),
               ),
-              child: Text(
-                "Menu",
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.account_circle),
-              title: Text("Login"),
-            ),
-          ]
-        ),
+            ],
+          ),
+        ],
       ),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Expanded(child: ListView(
-              children: <Widget>[
-                Container(
-                height: 50,
-                color: Colors.orange,
-                child: Text("Run 1"),
-              ),
-              Container(
-                height: 50,
-                color: Colors.orange,
-                child: Text("Run 2"),
-              ),
-              Container(
-                height: 50,
-                color: Colors.orange,
-                child: Text("Run 3"),
-              )],
-            )
-            ,)
-          ], 
-      ),
-    ),  
+              child: Builder(
+                builder: (BuildContext context) {
+                  // if(!initialized) {
+                  //   initialize();
+                  //   return CircularProgressIndicator(
+                  //   );
+                  // }
+                  // else {
+                  //   _buildLogs();
+                  // }
+                  return _buildLogs();
+                }
+              )
+            ),
     );
+  }
+
+  //Method to push views onto navigator stack
+  void _pushView(Views pushView) {
+    switch(pushView) {
+      case Views.addLog:
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (BuildContext context) {
+                return _newLogPage;
+              },
+            )
+          );
+        break;
+      case Views.viewLog:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) {
+              return LogView(_savedLogs[viewIndex]);
+            }
+          ),
+        );
+        // TODO: Handle this case.
+        break;
+    }
   }
 }
